@@ -63,6 +63,10 @@ except ImportError:
 
 from tensorflow.keras import utils as np_utils
 
+import tensorflow as tf
+tf.get_logger().setLevel('ERROR')
+tf.autograph.set_verbosity(0)
+
 ##################### DECODER FUNCTIONS ##########################
 
 
@@ -309,11 +313,174 @@ class KalmanFilterRegression(object):
         y_test_predicted=states.T
         return y_test_predicted
 
+##################### KALMAN FILTER GPU ##########################
+
+import tensorflow as tf
+import numpy as np
 
 
+class KalmanFilterRegressionGPU:
 
+    def __init__(self, C=1.0):
+        self.C = C
 
+    def fit(self, X_kf_train, y_train):
 
+        X = tf.convert_to_tensor(
+            y_train.T,
+            dtype=tf.float32
+        )
+
+        Z = tf.convert_to_tensor(
+            X_kf_train.T,
+            dtype=tf.float32
+        )
+
+        nt = X.shape[1]
+
+        X2 = X[:, 1:]
+        X1 = X[:, :-1]
+
+        # ---------- Transition Matrix ----------
+        A = (
+            tf.matmul(X2, X1, transpose_b=True)
+            @ tf.linalg.inv(
+                tf.matmul(X1, X1, transpose_b=True)
+            )
+        )
+
+        residual_A = X2 - tf.matmul(A, X1)
+
+        W = (
+            tf.matmul(
+                residual_A,
+                residual_A,
+                transpose_b=True
+            )
+            / (nt - 1)
+            / self.C
+        )
+
+        # ---------- Measurement Matrix ----------
+        H = (
+            tf.matmul(Z, X, transpose_b=True)
+            @ tf.linalg.inv(
+                tf.matmul(X, X, transpose_b=True)
+            )
+        )
+
+        residual_H = Z - tf.matmul(H, X)
+
+        Q = (
+            tf.matmul(
+                residual_H,
+                residual_H,
+                transpose_b=True
+            )
+            / nt
+        )
+
+        self.model = [A, W, H, Q]
+
+    def predict(self, X_kf_test, y_test):
+
+        A, W, H, Q = self.model
+
+        X = tf.convert_to_tensor(
+            y_test.T,
+            dtype=tf.float32
+        )
+
+        Z = tf.convert_to_tensor(
+            X_kf_test.T,
+            dtype=tf.float32
+        )
+
+        num_states = X.shape[0]
+        T = X.shape[1]
+
+        states = tf.TensorArray(
+            tf.float32,
+            size=T
+        )
+
+        state = tf.expand_dims(X[:, 0], axis=1)
+
+        states = states.write(
+            0,
+            tf.squeeze(state)
+        )
+
+        P = tf.zeros(
+            (num_states, num_states),
+            dtype=tf.float32
+        )
+
+        I = tf.eye(
+            num_states,
+            dtype=tf.float32
+        )
+
+        for t in range(T - 1):
+
+            # Prediction
+            P_m = tf.matmul(
+                tf.matmul(A, P),
+                A,
+                transpose_b=True
+            ) + W
+
+            state_m = tf.matmul(A, state)
+
+            # Innovation covariance
+            S = (
+                tf.matmul(
+                    tf.matmul(H, P_m),
+                    H,
+                    transpose_b=True
+                )
+                + Q
+            )
+
+            # Kalman gain
+            K = (
+                tf.matmul(
+                    P_m,
+                    H,
+                    transpose_b=True
+                )
+                @ tf.linalg.inv(S)
+            )
+
+            # Update
+            P = tf.matmul(
+                (I - tf.matmul(K, H)),
+                P_m
+            )
+
+            innovation = (
+                tf.expand_dims(
+                    Z[:, t + 1],
+                    axis=1
+                )
+                - tf.matmul(H, state_m)
+            )
+
+            state = (
+                state_m
+                + tf.matmul(K, innovation)
+            )
+
+            states = states.write(
+                t + 1,
+                tf.squeeze(state)
+            )
+
+        states = tf.transpose(
+            states.stack()
+        )
+
+        return states.numpy().T
 
 
 
@@ -395,7 +562,7 @@ class DenseNNRegression(object):
             model.fit(X_flat_train,y_train,nb_epoch=self.num_epochs,verbose=self.verbose) #Fit the model
         else:
             model.fit(X_flat_train,y_train,epochs=self.num_epochs,verbose=self.verbose) #Fit the model
-        self.model=model
+        self.model=model # save trained model for prediction
 
 
     def predict(self,X_flat_test):
@@ -1024,6 +1191,7 @@ class NaiveBayesRegression(object):
 WienerFilterDecoder = WienerFilterRegression
 WienerCascadeDecoder = WienerCascadeRegression
 KalmanFilterDecoder = KalmanFilterRegression
+KalmanFilterDecoderGPU = KalmanFilterRegressionGPU
 DenseNNDecoder = DenseNNRegression
 SimpleRNNDecoder = SimpleRNNRegression
 GRUDecoder = GRURegression
