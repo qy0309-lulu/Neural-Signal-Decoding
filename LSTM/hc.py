@@ -103,6 +103,7 @@ y_valid=y_valid-y_train_mean
 
 # 初始化并训练LSTM
 model= LSTMDecoder(units = 100,dropout = 0.1,num_epochs = 10, verbose = verbose)
+print("开始训练LSTM")
 model.fit(X_train, y_train)
 
 # 预测并计算准确率
@@ -111,8 +112,8 @@ R2_valid=get_R2(y_valid,predictions)
 print("\n[LSTM] validation accuracy: {} %".format(R2_valid))
 
 fig_x_dnn=plt.figure()
-plt.plot(y_valid[2000:5000,0]+y_train_mean[0],'b')
-plt.plot(y_valid_predicted_dnn[2000:5000,0]+y_train_mean[0],'r')
+plt.plot(y_valid[2000:5000,0]+y_train_mean[0],'b',label='validaiton')
+plt.plot(predictions[2000:5000,0]+y_train_mean[0],'r', label='prediction')
 
 #Save figure
-fig_x_dnn.savefig('x_position_decoding.eps')
+fig_x_dnn.savefig('x_position_decoding.jpg', dpi=300)

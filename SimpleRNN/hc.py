@@ -101,8 +101,8 @@ y_train=y_train-y_train_mean
 y_test=y_test-y_train_mean
 y_valid=y_valid-y_train_mean
 
-# 初始化并训练GRU
-model= SimpleRNNDecoder(units=400, dropout=0.1,num_epochs=10,verbose=verbose)
+# 初始化并训练SimpleRNN
+model= SimpleRNNDecoder(units=400, dropout=0.1, num_epochs=50,verbose=verbose)
 model.fit(X_train, y_train)
 
 # 预测并计算准确率

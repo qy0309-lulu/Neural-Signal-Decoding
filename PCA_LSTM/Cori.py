@@ -2,8 +2,8 @@ import numpy as np
 
 verbose = 0
 # 加载数据集
-binned_spikes = np.load(r'E:\Neural_Decoding-master\binned_spikes.npy')
-choices = np.load(r'E:\Neural_Decoding-master\choices.npy')+1
+binned_spikes = np.load(r'/root/binned_spikes.npy')
+choices = np.load(r'/root/choices.npy')+1
 
 # 查看数据形状和前10个标签
 print(binned_spikes.shape, choices.shape)
@@ -26,16 +26,20 @@ warnings.filterwarnings('ignore')
 
 # ==============================================================================
 from sklearn.decomposition import PCA
+print(f"\n √ spike initial shape：{training_spikes.shape}")
+flat_train_data = np.reshape(training_spikes, (len(training_spikes),-1))
+flat_val_data = np.reshape(validation_spikes, (len(validation_spikes),-1))
 
 # PCA降维（展平数据后）
-pca = PCA(n_components=2)
+pca = PCA(n_components=16)
 pca.fit(flat_train_data)
 X_train = pca.transform(flat_train_data)
 X_test = pca.transform(flat_val_data)
+print(f"\n √ after PCA shape: {X_train.shape}")
 
 # 重构时序维度（需匹配LSTM输入格式，示例仅为参考，需根据实际维度调整）
-X_train = np.reshape(X_train, (X_train.shape[0], 1089, 50))  # 需根据实际维度适配
-X_test = np.reshape(X_test, (X_test.shape[0], 1089, 50))
+X_train = np.reshape(X_train, (X_train.shape[0], 1, 16))  # 需根据实际维度适配
+X_test = np.reshape(X_test, (X_test.shape[0], 1, 16))
 
 # 训练LSTM
 LSTM_classifier = decoders.LSTMClassification(units = 100,
@@ -45,4 +49,4 @@ LSTM_classifier = decoders.LSTMClassification(units = 100,
 LSTM_classifier.fit(X_train, training_choices)
 predictions = LSTM_classifier.predict(X_test)
 accuracy = np.mean(predictions == validation_choices)
-print("[PCA+LSTM] accuracy: {} %".format(100*accuracy))
+print("\n √ [PCA+LSTM] accuracy: {} %".format(100*accuracy))

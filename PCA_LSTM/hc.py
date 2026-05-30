@@ -102,29 +102,39 @@ y_train=y_train-y_train_mean
 y_test=y_test-y_train_mean
 y_valid=y_valid-y_train_mean
 
+print(f"\n √ spike initial shape：{X_train.shape}")
 
 # PCA降维（展平数据后）
-pca = PCA(n_components=2)
+N_COMPONENTS=20
+pca = PCA(n_components=N_COMPONENTS)
 pca.fit(X_flat_train)
 X_train_2 = pca.transform(X_flat_train)
 X_valid= pca.transform(X_flat_valid)
+print(f"\n √ after PCA shape: {X_train_2.shape}")
 
 # 重构时序维度（需匹配LSTM输入格式，示例仅为参考，需根据实际维度调整）
-X_train_3 = np.reshape(X_train_2, (X_train.shape[0], X.shape[1], X.shape[2]))  # 需根据实际维度适配
-X_valid = np.reshape(X_valid, (X_test.shape[0], X_train.shape[1], X_train.shape[2]))
+X_train_3 = np.reshape(X_train_2, (X_train.shape[0], 1, N_COMPONENTS))  # 需根据实际维度适配
+X_valid = np.reshape(X_valid, (X_test.shape[0], 1, N_COMPONENTS))
 
 # 初始化并训练LSTM
-model= LSTMDecoder(units = 100,dropout = 0.1,num_epochs = 10, verbose = verbose)
+print("\n √ start LSTM training")
+model= LSTMDecoder(units = 400, dropout = 0.1, num_epochs = 30, verbose = verbose)
 model.fit(X_train_3, y_train)
 
 # 预测并计算准确率
 y_predicted = model.predict(X_valid)
-R2_valid=get_R2(y_valid,predictions)
-print("\n[PCA_LSTM] validation accuracy: {} %".format(R2_valid))
+R2_valid=get_R2(y_valid,y_predicted)
+print("\n √ [PCA_LSTM] validation accuracy: {} %".format(R2_valid))
 
-fig_x_dnn=plt.figure()
-plt.plot(y_valid[2000:5000,0]+y_train_mean[0],'b')
-plt.plot(y_predicted_[2000:5000,0]+y_train_mean[0],'r')
+fig_x_PCA_LSTM=plt.figure()
+plt.plot(y_valid[2000:5000,0]+y_train_mean[0],'b',label='validation')
+plt.plot(y_predicted[2000:5000,0]+y_train_mean[0],'r',label='prediction')
+plt.legend()
 
+fig_y_PCA_LSTM=plt.figure()
+plt.plot(y_valid[2000:5000,1]+y_train_mean[0],'b',label='Validation')
+plt.plot(y_predicted[2000:5000,1]+y_train_mean[0],'r',label='prediction')
+plt.legend()
 #Save figure
-fig_x_dnn.savefig('x_position_decoding.eps')
+fig_x_PCA_LSTM.savefig('x_position_decoding.jpg', dpi=300)
+fig_y_PCA_LSTM.savefig('y_position_decoding.jpg', dpi=300)
